@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn to_array() {
-        assert_eq!((0..5).to_array::<5>(), Ok([0,1,2,3,4]));
+        assert_eq!((0..5).to_array(), Ok([0,1,2,3,4]));
         assert_eq!((0..5).to_array::<10>(), Err(ToArrayError::TooShort(5, 10)));
         assert_eq!((0..0).to_array::<10>(), Err(ToArrayError::TooShort(0, 10)));
         assert_eq!((0..5).to_array::<4>(), Err(ToArrayError::TooLong(4)));
@@ -134,9 +134,9 @@ mod tests {
 
     #[test]
     fn to_array_default() {
-        assert_eq!((0..5).to_array_default::<5>(), Ok([0,1,2,3,4]));
-        assert_eq!((0..5).to_array_default::<7>(), Ok([0,1,2,3,4,0,0]));
-        assert_eq!((0..0).to_array_default::<10>(), Ok([0; 10]));
+        assert_eq!((0..5).to_array_default(), Ok([0,1,2,3,4]));
+        assert_eq!((0..5).to_array_default(), Ok([0,1,2,3,4,0,0]));
+        assert_eq!((0..0).to_array_default(), Ok([0; 10]));
         assert_eq!((0..5).to_array_default::<4>(), Err(ToArrayError::TooLong(4)));
 
         let mut iter = 0..8;
@@ -147,9 +147,9 @@ mod tests {
 
     #[test]
     fn to_array_pad() {
-        assert_eq!((0..5).to_array_pad::<5>(4), Ok([0,1,2,3,4]));
-        assert_eq!((0..5).to_array_pad::<7>(4), Ok([0,1,2,3,4,4,4]));
-        assert_eq!((0..0).to_array_pad::<10>(4), Ok([4; 10]));
+        assert_eq!((0..5).to_array_pad(4), Ok([0,1,2,3,4]));
+        assert_eq!((0..5).to_array_pad(4), Ok([0,1,2,3,4,4,4]));
+        assert_eq!((0..0).to_array_pad(4), Ok([4; 10]));
         assert_eq!((0..5).to_array_pad::<4>(4), Err(ToArrayError::TooLong(4)));
 
         let mut iter = 0..8;
