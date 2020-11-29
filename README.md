@@ -1,8 +1,12 @@
-# to\_array
+# iter\_to\_array
 
-Provides 3 traits for collecting iterators into arrays: `ToArray`, `ToArrayDefault` and `ToArrayPad`.
+⚠️ WARNING: This library contains `unsafe` code and has not been fully reviewed. ⚠️
 
-This library uses unstable features (namely `const_generics`), so it cannot be used on stable.
+Provides some traits for collecting iterators into arrays: `ToArray`, `ToArrayDefault` and `ToArrayPad`.
+
+Also provides `Chunks` and `ChunksDefault` for iterating compile-time sized chunks.
+
+This library uses unstable features (namely `const_generics`), so it cannot be used with stable Rust.
 
 Usage example:
 
@@ -17,4 +21,10 @@ let arr1: [5; i32] = iter.take_array().unwrap();  // only consumes as many eleme
 let arr2: [5; i32] = iter.take_array().unwrap();
 assert_eq!(arr1, [0,1,2,3,4]);
 assert_eq!(arr2, [5,6,7,8,9]);
+
+
+// compile-time sized chunks iteration
+for chunk in iter.chunks_default::<5>() {
+    println!("chunk is {}", chunk);
+}
 ```

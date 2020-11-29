@@ -17,9 +17,32 @@ pub enum MaybePartial<A> {
 }
 
 pub trait ToArray<T> {
-    /// Convert to an array with zero allocations
+    /// Take elements from the iterator up to N, and collect to an array.
+    /// 
+    /// If the iterator is too short, returns Err(ToArrayError::TooShort).
+    /// The iterated items up to the end of the iterator are dropped in this case.
+    /// Otherwise, returns an array of length N containing the first N items
+    /// in the iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iter_to_array::*;
+    /// assert_eq!((0..5).to_array(), Ok([0,1,2,3,4]));
+    /// assert_eq!((0..5).to_array::<6>(), Err(ToArrayError::TooShort(5, 6)))
+    /// ```
+    /// 
     fn take_array<const N: usize>(&mut self) -> Result<[T; N], ToArrayError>;
+
+    /// Collect the iterator to an array of size N.
+    /// 
+    /// If the iterator is too short, returns Err(ToArrayError::TooShort).
+    /// If the iterator is too long, returns Err(ToArrayError::TooLong).
+    /// Otherwise, returns an array of length N.
+    ///
     fn to_array<const N: usize>(self) -> Result<[T; N], ToArrayError>;
+
+    /// Take elements from the iterator up to N and collect to an array with possible padding.
     fn take_array_partial<F: FnMut() -> T, const N: usize>(&mut self, padding: F) -> MaybePartial<[T; N]>;
 }
 
@@ -270,8 +293,8 @@ mod tests {
         let vec: Vec<[i32; 4]> = (0..8).chunks(|| -1).collect();
         assert_eq!(vec,  vec![[0,1,2,3], [4,5,6,7]]);
 
-        let vec: Vec<[i32; 4]> = (0..5).chunks(|| -1).collect();
-        assert_eq!(vec, vec![[0,1,2,3], [4,-1,-1,-1]]);
+        let vec: Vec<[i32; 4]> = (0..9).chunks(|| -1).collect();
+        assert_eq!(vec, vec![[0,1,2,3], [4,5,6,7], [8,-1,-1,-1]]);
 
         let vec: Vec<[i32; 4]> = (0..4).chunks(|| -1).collect();
         assert_eq!(vec, vec![[0,1,2,3]]);
