@@ -9,10 +9,18 @@ pub enum ToArrayError {
     TooLong(usize)
 }
 
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
+pub enum MaybePartial<A> {
+    Full(A),
+    Partial(A, usize),
+    Empty
+}
+
 pub trait ToArray<T> {
     /// Convert to an array with zero allocations
     fn take_array<const N: usize>(&mut self) -> Result<[T; N], ToArrayError>;
     fn to_array<const N: usize>(self) -> Result<[T; N], ToArrayError>;
+    fn take_array_partial<F: FnMut() -> T, const N: usize>(&mut self, padding: F) -> MaybePartial<[T; N]>;
 }
 
 impl<I, T: Sized> ToArray<T> for I where I: Iterator<Item=T> {
@@ -44,6 +52,41 @@ impl<I, T: Sized> ToArray<T> for I where I: Iterator<Item=T> {
             })
         }
     } 
+
+    fn take_array_partial<F: FnMut() -> T, const N: usize>(&mut self, mut padding: F) -> MaybePartial<[T; N]> {
+        let mut res: [MaybeUninit<T>; N] = unsafe {
+            MaybeUninit::uninit().assume_init()
+        };
+        
+        let mut error_index = None;
+        
+        for (i, el) in res.iter_mut().enumerate() {
+            if let Some(x) = self.next() {
+                *el = MaybeUninit::new(x);
+            } else {
+                error_index = Some(i);
+                break;
+            }
+        }
+        
+        if let Some(i) = error_index {
+            if i == 0 {
+                MaybePartial::Empty
+                // no need to uninit anything
+            } else {
+                for el in &mut res[i..] {
+                    *el = MaybeUninit::new(padding())
+                } 
+                MaybePartial::Partial(unsafe {
+                    mem::transmute_copy(&res)
+                }, i)
+            }
+        } else {
+            MaybePartial::Full(unsafe {
+                mem::transmute_copy(&res)
+            })
+        }
+    }
     
     fn to_array<const N: usize>(mut self) -> Result<[T; N], ToArrayError> {
         let arr = self.take_array()?;
@@ -110,6 +153,42 @@ impl<I, T: Sized + Clone> ToArrayPad<T> for I where I: Iterator<Item=T> {
     }
 }
 
+pub struct ChunksIter<I: Iterator, F: FnMut() -> <I as Iterator>::Item, const N: usize> {
+    iter: I,
+    padding: F,
+}
+
+impl<I: Iterator, F: FnMut() -> <I as Iterator>::Item, const N: usize> Iterator for ChunksIter<I, F, N> 
+    where I: Iterator {
+    type Item = [I::Item; N];
+
+    fn next(&mut self) -> Option<[I::Item; N]> {
+        let ChunksIter { iter, padding } = self;
+        match iter.take_array_partial(padding) {
+            MaybePartial::Empty => None,
+            MaybePartial::Partial(x, _) => Some(x),
+            MaybePartial::Full(x) => Some(x)
+        }
+    }
+}
+
+pub trait Chunks: Iterator + Sized {
+    fn chunks<F: FnMut() -> <Self as Iterator>::Item, const N: usize>(self, padding: F) -> ChunksIter<Self, F, N> {
+        ChunksIter { iter: self, padding }
+    }
+}
+
+impl<I> Chunks for I where I: Iterator + Sized {}
+
+pub trait ChunksDefault: Iterator + Sized {
+    fn chunks_default<const N: usize>(self) -> ChunksIter<Self, fn() -> <Self as Iterator>::Item, N>;
+}
+
+impl<I> ChunksDefault for I where I: Iterator, <I as Iterator>::Item: Default {
+    fn chunks_default<const N: usize>(self) -> ChunksIter<Self, fn() -> <Self as Iterator>::Item, N> {
+        ChunksIter { iter: self, padding: Default::default }
+    }
+}
 
 #[cfg(test)]
 #[macro_use]
@@ -174,5 +253,30 @@ mod tests {
         use std::vec::Vec;
         let v = vec![(1..5).collect::<Vec<i32>>(); 5];
         v.into_iter().to_array::<6>().unwrap();
+    }
+
+    #[test]
+    fn chunks_iter() {
+        use std::vec::Vec;
+        use std::convert::TryInto;
+        for chunk in (0..5).cycle().take(100).chunks_default() {
+            assert_eq!(chunk, [0,1,2,3,4])
+        }
+        let vec: Vec<usize> = (0..30).collect();
+        let chunks1: Vec<[usize; 6]> = vec.clone().chunks(6).map(|x| x.try_into().unwrap()).collect();
+        let chunks2: Vec<[usize; 6]> = vec.into_iter().chunks_default().collect();
+        assert_eq!(chunks1, chunks2);
+        
+        let vec: Vec<[i32; 4]> = (0..8).chunks(|| -1).collect();
+        assert_eq!(vec,  vec![[0,1,2,3], [4,5,6,7]]);
+
+        let vec: Vec<[i32; 4]> = (0..5).chunks(|| -1).collect();
+        assert_eq!(vec, vec![[0,1,2,3], [4,-1,-1,-1]]);
+
+        let vec: Vec<[i32; 4]> = (0..4).chunks(|| -1).collect();
+        assert_eq!(vec, vec![[0,1,2,3]]);
+
+        let vec: Vec<[i32; 4]> = (0..0).chunks(|| -1).collect();
+        assert_eq!(vec, Vec::<[i32; 4]>::new());
     }
 }
