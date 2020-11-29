@@ -1,5 +1,5 @@
 [package]
-name = "to-array"
+name = "iter_to_array"
 version = "0.1.0"
 authors = ["Jonathan Goren <jonagn@gmail.com>"]
 edition = "2018"
